@@ -3,13 +3,44 @@ import SwiftUI
 
 @MainActor
 final class AppState: ObservableObject {
+    enum Tab: Int, CaseIterable, Hashable {
+        case projects = 0
+        case editor = 1
+        case builder = 2
+        case terminal = 3
+        case settings = 4
+
+        var rawValueLabel: String {
+            switch self {
+            case .projects: return "Proyectos"
+            case .editor: return "Editor"
+            case .builder: return "UI Builder"
+            case .terminal: return "Terminal"
+            case .settings: return "Ajustes"
+            }
+        }
+
+        // Compatibility with ContentView using .rawValue for label
+        var rawValue: String { rawValueLabel }
+
+        var icon: String {
+            switch self {
+            case .projects: return "folder.fill"
+            case .editor: return "chevron.left.forwardslash.chevron.right"
+            case .builder: return "rectangle.3.group.fill"
+            case .terminal: return "terminal.fill"
+            case .settings: return "gearshape.fill"
+            }
+        }
+    }
+
     @Published var projects: [Project] = []
     @Published var selectedProject: Project?
     @Published var selectedFile: ProjectFile?
     @Published var settings: Settings {
         didSet { persistSettings() }
     }
-    @Published var selectedTab: Int = 0
+    @Published var selectedTab: Tab = .projects
 
     private let settingsKey = "rustforge.settings"
 
@@ -40,10 +71,19 @@ final class AppState: ObservableObject {
     func openProject(_ project: Project) {
         selectedProject = project
         selectedFile = nil
-        selectedTab = 1 // Editor
+        selectedTab = .editor
     }
 
     func saveSettings() {
+        persistSettings()
+    }
+
+    func applyImportedSDK(_ info: SDKManager.SDKInfo) {
+        settings.sdkPath = info.path
+        settings.sdkVersion = info.version
+        if !info.deploymentTarget.isEmpty {
+            settings.deploymentTarget = info.deploymentTarget
+        }
         persistSettings()
     }
 
