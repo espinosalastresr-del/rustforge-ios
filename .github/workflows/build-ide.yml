@@ -14,12 +14,29 @@ env:
 jobs:
   build-wamr:
     name: Build WAMR for iOS
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
+        run: |
+          # Prefer Xcode 16+ (objectVersion 77 from XcodeGen 2.46)
+          if [ -d /Applications/Xcode_16.4.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.4.app
+          elif [ -d /Applications/Xcode_16.3.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.3.app
+          elif [ -d /Applications/Xcode_16.2.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app
+          elif [ -d /Applications/Xcode_16.1.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.1.app
+          elif [ -d /Applications/Xcode_16.0.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.0.app
+          else
+            sudo xcode-select -s /Applications/Xcode.app
+          fi
+          xcodebuild -version
+
       - name: Build WAMR
         run: |
           chmod +x scripts/build-wamr.sh
@@ -28,6 +45,7 @@ jobs:
             mkdir -p runtime/wamr/lib
             echo "placeholder" > runtime/wamr/lib/README
           }
+
       - name: Upload WAMR libs
         uses: actions/upload-artifact@v4
         with:
@@ -42,10 +60,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
       - name: Prepare toolchain
         run: |
           chmod +x scripts/prepare-toolchain.sh
           ./scripts/prepare-toolchain.sh
+
       - name: Upload toolchain
         uses: actions/upload-artifact@v4
         with:
@@ -55,29 +75,49 @@ jobs:
 
   build-app:
     name: Build RustForge iOS App
-    runs-on: macos-14
+    runs-on: macos-15
     needs: [build-wamr, prepare-toolchain]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
+        run: |
+          if [ -d /Applications/Xcode_16.4.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.4.app
+          elif [ -d /Applications/Xcode_16.3.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.3.app
+          elif [ -d /Applications/Xcode_16.2.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app
+          elif [ -d /Applications/Xcode_16.1.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.1.app
+          elif [ -d /Applications/Xcode_16.0.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.0.app
+          else
+            sudo xcode-select -s /Applications/Xcode.app
+          fi
+          xcodebuild -version
+
       - name: Download WAMR
         uses: actions/download-artifact@v4
         with:
           name: wamr-ios
           path: runtime/wamr/lib/
         continue-on-error: true
+
       - name: Download toolchain
         uses: actions/download-artifact@v4
         with:
           name: wasm-toolchain
           path: toolchain/current/
         continue-on-error: true
+
       - name: Install XcodeGen
         run: brew install xcodegen
+
       - name: Generate Xcode project
         run: xcodegen generate
+
       - name: Build iOS App (unsigned)
         run: |
           set -o pipefail
@@ -92,6 +132,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             build 2>&1 | tee build/xcodebuild.log
+
       - name: Collect artifacts
         if: always()
         run: |
@@ -99,6 +140,7 @@ jobs:
           cp build/xcodebuild.log build/output/ 2>/dev/null || true
           find build/DerivedData -name "RustForge.app" -type d -exec cp -R {} build/output/ \; 2>/dev/null || true
           ls -laR build/output || true
+
       - name: Upload build output
         if: always()
         uses: actions/upload-artifact@v4
