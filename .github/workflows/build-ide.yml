@@ -21,7 +21,6 @@ jobs:
 
       - name: Select Xcode
         run: |
-          # Prefer Xcode 16+ (objectVersion 77 from XcodeGen 2.46)
           if [ -d /Applications/Xcode_16.4.app ]; then
             sudo xcode-select -s /Applications/Xcode_16.4.app
           elif [ -d /Applications/Xcode_16.3.app ]; then
@@ -133,8 +132,43 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             build 2>&1 | tee build/xcodebuild.log
 
-      - name: Collect artifacts
-        if: always()
+      - name: Package IPA for LiveContainer
+        if: success()
+        run: |
+          set -euo pipefail
+          ROOT="$GITHUB_WORKSPACE"
+          OUT="$ROOT/build/output"
+          mkdir -p "$OUT"
+
+          APP_PATH=$(find "$ROOT/build/DerivedData" -name "RustForge.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: RustForge.app not found"
+            find "$ROOT/build/DerivedData" -name "*.app" -type d || true
+            exit 1
+          fi
+          echo "Found app: $APP_PATH"
+
+          # Standard unsigned IPA: zip of Payload/App.app
+          rm -rf "$OUT/Payload"
+          mkdir -p "$OUT/Payload"
+          cp -R "$APP_PATH" "$OUT/Payload/"
+
+          (
+            cd "$OUT"
+            # -y store symlinks as symlinks if any; -r recursive
+            zip -r "RustForge.ipa" Payload
+            ls -lah "RustForge.ipa"
+          )
+
+          # Keep log and a copy of the .app for debugging
+          cp "$ROOT/build/xcodebuild.log" "$OUT/" 2>/dev/null || true
+          cp -R "$APP_PATH" "$OUT/" 2>/dev/null || true
+
+          echo "IPA ready for LiveContainer: $OUT/RustForge.ipa"
+          ls -laR "$OUT"
+
+      - name: Collect artifacts (always keep log on failure)
+        if: failure()
         run: |
           mkdir -p build/output
           cp build/xcodebuild.log build/output/ 2>/dev/null || true
