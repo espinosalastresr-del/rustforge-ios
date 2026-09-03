@@ -6,18 +6,16 @@ struct UIBuilderView: View {
     @State private var selectedComponentId: UUID?
     @State private var generatedCode: String = ""
     @State private var showCode = false
-    
+    @State private var exportMessage: String?
+
     var body: some View {
         NavigationStack {
             HStack(spacing: 0) {
-                componentPalette
-                    .frame(width: 200)
+                componentPalette.frame(width: 200)
                 Divider()
-                canvas
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                canvas.frame(maxWidth: .infinity, maxHeight: .infinity)
                 Divider()
-                inspector
-                    .frame(width: 260)
+                inspector.frame(width: 260)
             }
             .navigationTitle("UI Builder")
             .navigationBarTitleDisplayMode(.inline)
@@ -27,17 +25,24 @@ struct UIBuilderView: View {
                         generateSwiftUICode()
                         showCode = true
                     } label: {
-                        Label("Generar código", systemImage: "doc.text")
+                        Label("Generar", systemImage: "doc.text")
                     }
+                    Button {
+                        exportToProject()
+                    } label: {
+                        Label("Exportar al proyecto", systemImage: "square.and.arrow.down")
+                    }
+                    .disabled(appState.selectedProject == nil)
                 }
             }
             .sheet(isPresented: $showCode) {
                 NavigationStack {
                     ScrollView {
-                        Text(generatedCode)
+                        Text(generatedCode.isEmpty ? "Pulsa Generar" : generatedCode)
                             .font(.system(size: 13, design: .monospaced))
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
                     }
                     .navigationTitle("SwiftUI generado")
                     .navigationBarTitleDisplayMode(.inline)
@@ -51,9 +56,17 @@ struct UIBuilderView: View {
                     }
                 }
             }
+            .alert("Exportación", isPresented: Binding(
+                get: { exportMessage != nil },
+                set: { if !$0 { exportMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) { exportMessage = nil }
+            } message: {
+                Text(exportMessage ?? "")
+            }
         }
     }
-    
+
     private var componentPalette: some View {
         List {
             Section("Contenedores") {
@@ -68,7 +81,7 @@ struct UIBuilderView: View {
         }
         .listStyle(.sidebar)
     }
-    
+
     private var canvas: some View {
         ZStack {
             Color(.systemGroupedBackground)
@@ -76,6 +89,9 @@ struct UIBuilderView: View {
                 VStack(spacing: 12) {
                     Image(systemName: "rectangle.3.group").font(.system(size: 48)).foregroundStyle(.secondary)
                     Text("Añade componentes desde la paleta").foregroundStyle(.secondary)
+                    Text("Luego exporta el SwiftUI al proyecto activo")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
             } else {
                 ScrollView {
@@ -96,7 +112,7 @@ struct UIBuilderView: View {
             }
         }
     }
-    
+
     private var inspector: some View {
         Form {
             if let id = selectedComponentId,
@@ -122,14 +138,14 @@ struct UIBuilderView: View {
             }
         }
     }
-    
+
     private func binding(for index: Int, key: String) -> Binding<String> {
         Binding(
             get: { components[index].properties[key] ?? "" },
             set: { components[index].properties[key] = $0 }
         )
     }
-    
+
     private func addComponent(_ type: UIComponentType) {
         var props: [String: String] = [:]
         switch type {
@@ -142,21 +158,40 @@ struct UIBuilderView: View {
         components.append(c)
         selectedComponentId = c.id
     }
-    
+
     private func generateSwiftUICode() {
         var code = "import SwiftUI\n\nstruct ContentView: View {\n    var body: some View {\n        VStack(spacing: 16) {\n"
         for c in components {
             switch c.type {
-            case .text: code += "            Text(\"\(c.properties["text"] ?? "Texto")\")\n"
-            case .button: code += "            Button(\"\(c.properties["title"] ?? "Botón")\") { }\n"
-            case .image: code += "            Image(systemName: \"\(c.properties["systemName"] ?? "photo")\")\n"
-            case .vStack: code += "            VStack { }\n"
-            case .hStack: code += "            HStack { }\n"
-            default: break
+            case .text:
+                code += "            Text(\"\(c.properties["text"] ?? "Texto")\")\n"
+            case .button:
+                code += "            Button(\"\(c.properties["title"] ?? "Botón")\") { }\n"
+            case .image:
+                code += "            Image(systemName: \"\(c.properties["systemName"] ?? "photo")\")\n"
+            case .vStack:
+                code += "            VStack { }\n"
+            case .hStack:
+                code += "            HStack { }\n"
             }
         }
         code += "        }\n        .padding()\n    }\n}\n"
         generatedCode = code
+    }
+
+    private func exportToProject() {
+        generateSwiftUICode()
+        guard let project = appState.selectedProject else {
+            exportMessage = "Selecciona un proyecto primero"
+            return
+        }
+        if ProjectFileManager.shared.writeGeneratedUI(code: generatedCode, into: project) {
+            exportMessage = "ContentView.swift actualizado en \(project.name)/ios/"
+            // Refresh file tree
+            appState.refreshProjects()
+        } else {
+            exportMessage = "No se pudo escribir el archivo"
+        }
     }
 }
 

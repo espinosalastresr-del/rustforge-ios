@@ -1,71 +1,57 @@
 # RustForge iOS
 
-IDE de Rust para iPhone y iPad.
+IDE híbrido **Rust + SwiftUI** que corre en el dispositivo (LiveContainer + StikDebug / JIT).
+El linking y empaquetado del `.ipa` se hacen en **GitHub Actions**.
 
-Desarrolla aplicaciones híbridas **SwiftUI + Rust** desde el dispositivo, con compilación on-device (WASM + WAMR + JIT) y linking final automatizado vía GitHub Actions.
+## Estado
 
-## Características
+| Componente | Estado |
+|------------|--------|
+| IDE SwiftUI (proyectos, editor, terminal, UI builder, ajustes) | Compila en CI |
+| Workflow **Build RustForge IDE** | Success → artefacto `.app` |
+| Workflow **Build iOS App** | Success → artefacto `.ipa` unsigned |
+| Flujo app → CI → descarga IPA → compartir | Integrado |
+| WAMR / rustc.wasm on-device | Stub listo para sustituir por runtime real |
 
-- Editor de código + árbol de archivos
-- rust-analyzer (bridge preparado)
-- Compilación Rust on-device (WAMR)
-- UI Builder (Drag & Drop → SwiftUI)
-- Proyectos híbridos con FFI listo
-- Cache de Cargo + modo offline
-- Build remoto automatizado (GitHub Actions)
-- Instalación en LiveContainer
+## Uso rápido
 
-## Requisitos de uso
+1. Descarga el artefacto `rustforge-ios-build` del workflow **Build RustForge IDE**.
+2. Instálalo con **LiveContainer** (no requiere firma).
+3. En **Ajustes → GitHub Actions**:
+   - Token con scopes `repo` + `workflow`
+   - Repositorio: `espinosalastresr-del/rustforge-ios`
+   - Workflow: `build.yml`
+4. Crea un proyecto (plantilla hybrid Rust staticlib + SwiftUI).
+5. Edita código / usa el **UI Builder** y exporta a `ios/ContentView.swift`.
+6. Pulsa **Play** en el editor → se dispara CI → al terminar puedes **compartir el IPA** a LiveContainer.
 
-- iOS 17.4+
-- LiveContainer + StikDebug (JIT)
-- Token de GitHub (para builds remotos de tus apps)
+## Arquitectura
 
-## Build del IDE con GitHub Actions
+```
+┌─────────────────────┐     workflow_dispatch      ┌──────────────────────┐
+│  RustForge IDE      │ ─────────────────────────► │  GitHub Actions      │
+│  (LiveContainer)    │                            │  build.yml           │
+│  - Editor / VFS     │ ◄──── artifact IPA ────────│  cargo + xcodebuild  │
+│  - UI Builder       │                            │  → .ipa unsigned     │
+│  - BuildService     │                            └──────────────────────┘
+└─────────────────────┘
+```
 
-1. Sube el código a un repositorio GitHub.
-2. El workflow **Build RustForge IDE** se ejecuta en push a `main`/`develop` o manualmente.
-3. Jobs:
-   - `build-wamr` — compila WAMR para iOS
-   - `prepare-toolchain` — prepara rustc.wasm / cargo.wasm
-   - `build-app` — XcodeGen + xcodebuild
-4. Descarga el artifact `rustforge-ios-build`.
+## Workflows
 
-### Build local (Mac + Xcode)
+- `.github/workflows/build-ide.yml` — compila el IDE (macos-15, Xcode 16).
+- `.github/workflows/build.yml` — linking de proyectos de usuario → IPA.
+
+## Desarrollo local del IDE
 
 ```bash
 brew install xcodegen
-./scripts/build-wamr.sh          # opcional
-./scripts/prepare-toolchain.sh   # opcional
 xcodegen generate
-xcodebuild \
-  -project RustForge.xcodeproj \
-  -scheme RustForge \
-  -destination 'generic/platform=iOS' \
-  -configuration Release \
-  CODE_SIGNING_ALLOWED=NO \
-  build
+open RustForge.xcodeproj
 ```
 
-## Estructura
+O deja que Actions genere el `.app` en cada push a `main`.
 
-```text
-rustforge-ios/
-├── app/RustForgeApp/     # UI SwiftUI del IDE
-├── runtime/              # WAMR bridge, WASI, VFS
-├── cargo/                # Cache de crates
-├── analyzer/             # Bridge rust-analyzer
-├── scripts/
-├── tests/
-├── docs/
-├── project.yml           # XcodeGen
-└── .github/workflows/
-    ├── build-ide.yml     # CI del IDE
-    └── build.yml         # CI de proyectos de usuario
-```
+## Licencia
 
-## Estado (0.1.0-dev)
-
-UI, editor, proyectos, UI Builder, runtime (simulación), BuildService, GitHub client, CI del IDE, plantillas híbridas FFI, SDK manager, Git básico.
-
-Pendiente de entorno Mac/CI real: librería WAMR nativa, toolchain WASM real, rust-analyzer linkado, subida real de artefactos de usuario.
+Proyecto experimental / educativo.

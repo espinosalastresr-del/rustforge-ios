@@ -1,60 +1,55 @@
 import Foundation
 import SwiftUI
-import Combine
 
 @MainActor
 final class AppState: ObservableObject {
-    @Published var selectedTab: Tab = .projects
+    @Published var projects: [Project] = []
     @Published var selectedProject: Project?
     @Published var selectedFile: ProjectFile?
-    @Published var projects: [Project] = []
-    @Published var isBuilding = false
-    @Published var buildLog: String = ""
-    @Published var lastBuildStatus: BuildStatus = .idle
-    @Published var settings = Settings()
-    
-    let runtime = WAMRRuntime.shared
-    let fileManager = ProjectFileManager.shared
-    
-    enum Tab: String, CaseIterable, Identifiable {
-        case projects = "Proyectos"
-        case editor = "Editor"
-        case builder = "UI Builder"
-        case terminal = "Terminal"
-        case settings = "Ajustes"
-        
-        var id: String { rawValue }
-        
-        var icon: String {
-            switch self {
-            case .projects: return "folder.fill"
-            case .editor: return "chevron.left.forwardslash.chevron.right"
-            case .builder: return "rectangle.3.group.fill"
-            case .terminal: return "terminal.fill"
-            case .settings: return "gearshape.fill"
-            }
+    @Published var settings: Settings {
+        didSet { persistSettings() }
+    }
+    @Published var selectedTab: Int = 0
+
+    private let settingsKey = "rustforge.settings"
+
+    init() {
+        if let data = UserDefaults.standard.data(forKey: settingsKey),
+           let decoded = try? JSONDecoder().decode(Settings.self, from: data) {
+            settings = decoded
+        } else {
+            settings = Settings()
+        }
+        refreshProjects()
+    }
+
+    func refreshProjects() {
+        projects = ProjectFileManager.shared.loadProjects()
+        if let selected = selectedProject,
+           let updated = projects.first(where: { $0.path == selected.path }) {
+            selectedProject = updated
         }
     }
-    
-    enum BuildStatus {
-        case idle, running, success, failed
-    }
-    
-    init() { loadProjects() }
-    
-    func loadProjects() {
-        projects = fileManager.loadProjects()
-    }
-    
+
     func createProject(name: String) {
-        let project = fileManager.createProject(name: name)
-        projects.append(project)
-        selectedProject = project
-        selectedTab = .editor
+        let project = ProjectFileManager.shared.createProject(name: name)
+        refreshProjects()
+        openProject(project)
     }
-    
+
     func openProject(_ project: Project) {
         selectedProject = project
-        selectedTab = .editor
+        selectedFile = nil
+        selectedTab = 1 // Editor
+    }
+
+    func saveSettings() {
+        persistSettings()
+    }
+
+    private func persistSettings() {
+        if let data = try? JSONEncoder().encode(settings) {
+            UserDefaults.standard.set(data, forKey: settingsKey)
+        }
     }
 }

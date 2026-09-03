@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
-    
+
     var body: some View {
         NavigationStack {
             Form {
@@ -22,6 +22,7 @@ struct SettingsView: View {
                     }
                     Toggle("Habilitar AOT (experimental)", isOn: $appState.settings.enableAOT)
                 }
+
                 Section("Cache y Offline") {
                     HStack {
                         Text("Tamaño máximo cache")
@@ -39,14 +40,27 @@ struct SettingsView: View {
                         try? CargoCache.shared.clearAll()
                     }
                 }
-                Section("GitHub Actions") {
-                    SecureField("GitHub Token", text: $appState.settings.githubToken)
-                    TextField("Repositorio (usuario/repo)", text: $appState.settings.githubRepo)
+
+                Section {
+                    SecureField("GitHub Token (classic o fine-grained)", text: $appState.settings.githubToken)
+                    TextField("Repositorio (owner/repo)", text: $appState.settings.githubRepo)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    TextField("Workflow", text: $appState.settings.githubWorkflowFile)
+                    TextField("Workflow file", text: $appState.settings.githubWorkflowFile)
                         .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if appState.settings.githubRepo.isEmpty {
+                        Button("Usar este repo (espinosalastresr-del/rustforge-ios)") {
+                            appState.settings.githubRepo = "espinosalastresr-del/rustforge-ios"
+                            appState.settings.githubWorkflowFile = "build.yml"
+                        }
+                    }
+                } header: {
+                    Text("GitHub Actions")
+                } footer: {
+                    Text("Necesario para generar el .ipa. El token requiere permisos repo + workflow. Tras el build, instala el IPA con LiveContainer.")
                 }
+
                 Section("SDK de Apple") {
                     if appState.settings.sdkPath.isEmpty {
                         Text("Ningún SDK importado").foregroundStyle(.secondary)
@@ -54,10 +68,13 @@ struct SettingsView: View {
                         LabeledContent("Ruta", value: appState.settings.sdkPath)
                         LabeledContent("Versión", value: appState.settings.sdkVersion)
                     }
-                    Button("Importar SDK…") {}
+                    Button("Importar SDK…") {
+                        // Document picker wired via SDKManager in future iteration
+                    }
                     TextField("Deployment Target", text: $appState.settings.deploymentTarget)
                         .keyboardType(.decimalPad)
                 }
+
                 Section("Editor") {
                     HStack {
                         Text("Tamaño de fuente")
@@ -67,6 +84,7 @@ struct SettingsView: View {
                     Toggle("Números de línea", isOn: $appState.settings.showLineNumbers)
                     Stepper("Tab size: \(appState.settings.tabSize)", value: $appState.settings.tabSize, in: 2...8)
                 }
+
                 Section("UI Builder") {
                     Picker("Framework por defecto", selection: $appState.settings.defaultUIFramework) {
                         ForEach(Settings.UIFramework.allCases, id: \.self) { fw in
@@ -74,12 +92,17 @@ struct SettingsView: View {
                         }
                     }
                 }
+
                 Section("Acerca de") {
-                    LabeledContent("Versión", value: "0.1.0-dev")
-                    LabeledContent("Runtime", value: "WAMR + JIT")
+                    LabeledContent("Versión", value: "0.1.0")
+                    LabeledContent("Runtime", value: "WAMR + JIT (LiveContainer)")
+                    LabeledContent("Linking", value: "GitHub Actions → IPA")
                 }
             }
             .navigationTitle("Ajustes")
+            .onDisappear {
+                appState.saveSettings()
+            }
         }
     }
 }
