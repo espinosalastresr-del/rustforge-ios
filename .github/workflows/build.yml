@@ -1,0 +1,58 @@
+name: Build iOS App
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_name:
+        description: "Nombre del proyecto"
+        required: true
+        type: string
+      artifact_url:
+        description: "URL del zip con sources + staticlib"
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Download project artifacts
+        run: |
+          mkdir -p build/input
+          curl -L "${{ github.event.inputs.artifact_url }}" -o build/input/project.zip
+          unzip build/input/project.zip -d build/input/project
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Build Rust staticlib (if needed)
+        working-directory: build/input/project
+        run: |
+          if [ -f Cargo.toml ]; then
+            cargo build --release --target aarch64-apple-ios
+          fi
+      - name: Create Xcode project (placeholder)
+        run: |
+          echo "Placeholder: linking SwiftUI + Rust staticlib"
+          mkdir -p build/output
+      - name: Package IPA (placeholder)
+        run: |
+          echo "Placeholder IPA" > build/output/App.ipa
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app-${{ github.event.inputs.project_name }}
+          path: build/output/App.ipa
+          retention-days: 5

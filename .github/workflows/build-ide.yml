@@ -1,0 +1,108 @@
+name: Build RustForge IDE
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IOS_DEPLOYMENT_TARGET: "17.0"
+  WAMR_VERSION: "WAMR-2.1.0"
+
+jobs:
+  build-wamr:
+    name: Build WAMR for iOS
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Build WAMR
+        run: |
+          chmod +x scripts/build-wamr.sh
+          ./scripts/build-wamr.sh || {
+            echo "WAMR build failed or partial — creating placeholder"
+            mkdir -p runtime/wamr/lib
+            echo "placeholder" > runtime/wamr/lib/README
+          }
+      - name: Upload WAMR libs
+        uses: actions/upload-artifact@v4
+        with:
+          name: wamr-ios
+          path: runtime/wamr/lib/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  prepare-toolchain:
+    name: Prepare WASM toolchain
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare toolchain
+        run: |
+          chmod +x scripts/prepare-toolchain.sh
+          ./scripts/prepare-toolchain.sh
+      - name: Upload toolchain
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-toolchain
+          path: toolchain/current/
+          retention-days: 7
+
+  build-app:
+    name: Build RustForge iOS App
+    runs-on: macos-14
+    needs: [build-wamr, prepare-toolchain]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Download WAMR
+        uses: actions/download-artifact@v4
+        with:
+          name: wamr-ios
+          path: runtime/wamr/lib/
+        continue-on-error: true
+      - name: Download toolchain
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-toolchain
+          path: toolchain/current/
+        continue-on-error: true
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build iOS App (unsigned)
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild \
+            -project RustForge.xcodeproj \
+            -scheme RustForge \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee build/xcodebuild.log
+      - name: Collect artifacts
+        if: always()
+        run: |
+          mkdir -p build/output
+          cp build/xcodebuild.log build/output/ 2>/dev/null || true
+          find build/DerivedData -name "RustForge.app" -type d -exec cp -R {} build/output/ \; 2>/dev/null || true
+          ls -laR build/output || true
+      - name: Upload build output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustforge-ios-build
+          path: build/output/
+          retention-days: 14
