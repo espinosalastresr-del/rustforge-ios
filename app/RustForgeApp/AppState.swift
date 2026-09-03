@@ -10,7 +10,7 @@ final class AppState: ObservableObject {
         case terminal = 3
         case settings = 4
 
-        var rawValueLabel: String {
+        var title: String {
             switch self {
             case .projects: return "Proyectos"
             case .editor: return "Editor"
@@ -19,9 +19,6 @@ final class AppState: ObservableObject {
             case .settings: return "Ajustes"
             }
         }
-
-        // Compatibility with ContentView using .rawValue for label
-        var rawValue: String { rawValueLabel }
 
         var icon: String {
             switch self {
