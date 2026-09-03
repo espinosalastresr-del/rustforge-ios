@@ -1,0 +1,37 @@
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+*.xcworkspace/
+xcuserdata/
+*.xcuserstate
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift / SPM
+.swiftpm/
+Packages/
+Package.resolved
+.build/
+
+# Toolchain / WAMR binarios grandes
+runtime/wamr/lib/*.a
+toolchain/current/*.wasm
+toolchain/current/sysroot/
+
+# OS
+.DS_Store
+*.swp
+*~
+
+# IDE
+.idea/
+.vscode/
+
+# Artifacts
+*.zip
+tmp/
