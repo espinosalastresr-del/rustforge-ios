@@ -85,6 +85,9 @@ jobs:
           [dependencies]
           EOF
 
+            # Strip accidental leading spaces from heredoc lines
+            sed -i '' 's/^[[:space:]]*//' "$PROJ/Cargo.toml" 2>/dev/null || sed -i 's/^[[:space:]]*//' "$PROJ/Cargo.toml"
+
             cat > "$PROJ/src/lib.rs" << 'EOF'
           #[no_mangle]
           pub extern "C" fn rustforge_add(a: i32, b: i32) -> i32 {
@@ -96,6 +99,7 @@ jobs:
               1
           }
           EOF
+            sed -i '' 's/^[[:space:]]*//' "$PROJ/src/lib.rs" 2>/dev/null || sed -i 's/^[[:space:]]*//' "$PROJ/src/lib.rs"
 
             cat > "$PROJ/ios/ContentView.swift" << 'EOF'
           import SwiftUI
@@ -175,14 +179,12 @@ jobs:
           LIB_NAME=$(ls build/input/libs/lib*.a 2>/dev/null | head -1 | xargs -I{} basename {} .a | sed 's/^lib//')
           LIB_NAME=${LIB_NAME:-demo_logic}
 
-          # Collect Swift sources
           mkdir -p build/xcode/Sources
           if [ -d "$PROJ/ios" ]; then
             cp -R "$PROJ/ios/"* build/xcode/Sources/ 2>/dev/null || true
           fi
           find "$PROJ" -name "*.swift" ! -path "*/ios/*" -exec cp {} build/xcode/Sources/ \; 2>/dev/null || true
 
-          # Ensure we have at least App entry
           if [ ! -f build/xcode/Sources/App.swift ]; then
             cat > build/xcode/Sources/App.swift << EOF
           import SwiftUI
@@ -195,7 +197,6 @@ jobs:
           EOF
           fi
 
-          # Bridging header
           if [ -f "$PROJ/ios/bridging.h" ]; then
             cp "$PROJ/ios/bridging.h" build/xcode/Sources/Bridging-Header.h
           else
@@ -209,17 +210,16 @@ jobs:
           EOF
           fi
 
-          # Info.plist
-          cat > build/xcode/Info.plist << EOF
+          cat > build/xcode/Info.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>CFBundleDevelopmentRegion</key><string>en</string>
-            <key>CFBundleExecutable</key><string>\$(EXECUTABLE_NAME)</string>
-            <key>CFBundleIdentifier</key><string>com.rustforge.\$(PRODUCT_NAME:rfc1034identifier)</string>
+            <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+            <key>CFBundleIdentifier</key><string>com.rustforge.$(PRODUCT_NAME:rfc1034identifier)</string>
             <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-            <key>CFBundleName</key><string>\$(PRODUCT_NAME)</string>
+            <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
             <key>CFBundlePackageType</key><string>APPL</string>
             <key>CFBundleShortVersionString</key><string>1.0</string>
             <key>CFBundleVersion</key><string>1</string>
@@ -272,7 +272,7 @@ jobs:
         run: |
           set -euo pipefail
           APP_NAME="${{ github.event.inputs.project_name }}"
-          mkdir -p build/DerivedData
+          mkdir -p build/DerivedData build/output
           xcodebuild \
             -project "build/xcode/${APP_NAME}.xcodeproj" \
             -scheme "${APP_NAME}" \
@@ -288,20 +288,34 @@ jobs:
         run: |
           set -euo pipefail
           APP_NAME="${{ github.event.inputs.project_name }}"
-          APP_PATH=$(find build/DerivedData -name "${APP_NAME}.app" -type d | head -1)
+          ROOT="$GITHUB_WORKSPACE"
+          APP_PATH=$(find "$ROOT/build/DerivedData" -name "${APP_NAME}.app" -type d | head -1)
           if [ -z "$APP_PATH" ]; then
             echo "ERROR: .app not found"
-            find build/DerivedData -name "*.app" -type d || true
+            find "$ROOT/build/DerivedData" -name "*.app" -type d || true
             exit 1
           fi
           echo "Found app: $APP_PATH"
-          mkdir -p build/output/Payload
-          cp -R "$APP_PATH" build/output/Payload/
-          cd build/output
-          zip -r "${APP_NAME}.ipa" Payload
-          ls -lah "${APP_NAME}.ipa"
-          # Also keep the raw .app
-          cp -R "$APP_PATH" .
+
+          OUT="$ROOT/build/output"
+          rm -rf "$OUT/Payload" "$OUT/${APP_NAME}.app"
+          mkdir -p "$OUT/Payload"
+
+          # Copy .app into Payload for IPA
+          cp -R "$APP_PATH" "$OUT/Payload/"
+
+          # Also keep a standalone copy of the .app
+          cp -R "$APP_PATH" "$OUT/"
+
+          # Zip IPA from absolute paths
+          (
+            cd "$OUT"
+            zip -r "${APP_NAME}.ipa" Payload
+            ls -lah "${APP_NAME}.ipa"
+            ls -la
+          )
+
+          echo "IPA ready: $OUT/${APP_NAME}.ipa"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
