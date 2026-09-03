@@ -11,9 +11,10 @@ struct EditorView: View {
         NavigationStack {
             Group {
                 if let project = appState.selectedProject {
-                    HSplitView {
+                    HStack(spacing: 0) {
                         FileTreeView(project: project)
-                            .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
+                            .frame(width: 260)
+                        Divider()
                         editorArea
                     }
                 } else {

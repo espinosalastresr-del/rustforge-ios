@@ -9,10 +9,15 @@ struct UIBuilderView: View {
     
     var body: some View {
         NavigationStack {
-            HSplitView {
-                componentPalette.frame(minWidth: 180, idealWidth: 200, maxWidth: 240)
-                canvas.frame(maxWidth: .infinity, maxHeight: .infinity)
-                inspector.frame(minWidth: 220, idealWidth: 260, maxWidth: 300)
+            HStack(spacing: 0) {
+                componentPalette
+                    .frame(width: 200)
+                Divider()
+                canvas
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Divider()
+                inspector
+                    .frame(width: 260)
             }
             .navigationTitle("UI Builder")
             .navigationBarTitleDisplayMode(.inline)
