@@ -1,0 +1,58 @@
+name: Build LiveExec32 and Extract Ramdisk DMG
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout LiveExec32
+        uses: actions/checkout@v4
+        with:
+          repository: LiveContainer/LiveExec32
+
+      - name: Install Dependencies
+        run: |
+          brew install wget
+          brew install blacktop/tap/ipsw
+
+      - name: Setup Theos
+        uses: Randomblock1/theos-action@v1
+        with:
+          theos-dir: 'theos'
+          theos-src: 'https://github.com/theos/theos'
+
+      - name: Build LiveExec32
+        run: |
+          export THEOS=./theos
+          make
+          mkdir -p output
+          cp .theos/out/LiveExec32 output/
+
+      - name: Download IPSW (iOS 10.3.3 for iPhone 5)
+        run: |
+          IPSW_URL="http://appldnld.apple.com/ios10.3.3/091-23384-20170719-CA966D80-6977-11E7-9F96-3E9100BA0AE3/iPhone_4.0_32bit_10.3.3_14G60_Restore.ipsw"
+          wget -O iPhone_4.0_32bit_10.3.3_14G60_Restore.ipsw "$IPSW_URL"
+
+      - name: Extract Filesystem DMG
+        run: |
+          # Extrae todos los DMGs, pero nos interesa el del sistema de archivos
+          ipsw extract iPhone_4.0_32bit_10.3.3_14G60_Restore.ipsw --dmg
+          # ipsw genera un archivo con nombre como "048-12345-123.dmg"
+          # Lo renombramos para identificarlo fácilmente
+          mv *.dmg ramdisk.dmg 2>/dev/null || true
+
+      - name: Package Artifact
+        run: |
+          mkdir -p artifact
+          cp output/LiveExec32 artifact/
+          cp ramdisk.dmg artifact/
+          cd artifact && zip -r ../LiveExec32_bundle.zip *
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiveExec32-bundle
+          path: LiveExec32_bundle.zip
