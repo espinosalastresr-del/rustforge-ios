@@ -16,14 +16,25 @@ jobs:
       - name: Install wget and unzip
         run: brew install wget unzip
 
-      - name: Download ipsw binary (precompiled)
+      - name: Install ipsw binary from latest release
         run: |
-          # Descargar la última versión de ipsw para macOS desde GitHub Releases
-          IPSW_VERSION="3.1.713"
-          curl -L -o ipsw.zip "https://github.com/blacktop/ipsw/releases/download/v${IPSW_VERSION}/ipsw_${IPSW_VERSION}_macOS_arm64.zip"
-          unzip ipsw.zip -d /usr/local/bin/
+          # Obtener URL del asset para macOS arm64 (si existe) o x86_64
+          IPSW_URL=$(curl -s https://api.github.com/repos/blacktop/ipsw/releases/latest | grep -o 'https://github.com/blacktop/ipsw/releases/download/.*/ipsw_.*_macOS_arm64.zip' | head -1)
+          if [ -z "$IPSW_URL" ]; then
+            echo "No se encontró asset para arm64, intentando con x86_64"
+            IPSW_URL=$(curl -s https://api.github.com/repos/blacktop/ipsw/releases/latest | grep -o 'https://github.com/blacktop/ipsw/releases/download/.*/ipsw_.*_macOS_x86_64.zip' | head -1)
+          fi
+          if [ -z "$IPSW_URL" ]; then
+            echo "Error: No se pudo obtener la URL de ipsw"
+            exit 1
+          fi
+          echo "Descargando desde: $IPSW_URL"
+          curl -L -o ipsw.zip "$IPSW_URL"
+          mkdir -p ipsw_extract
+          unzip ipsw.zip -d ipsw_extract
+          # Buscar el binario (puede estar en subcarpetas)
+          find ipsw_extract -type f -name "ipsw" -exec cp {} /usr/local/bin/ \;
           chmod +x /usr/local/bin/ipsw
-          # Verificar instalación
           ipsw --version
 
       - name: Setup Theos
@@ -46,9 +57,8 @@ jobs:
 
       - name: Extract Filesystem DMG
         run: |
-          # Extraer el DMG del sistema de archivos
           ipsw extract iPhone_4.0_32bit_10.3.3_14G60_Restore.ipsw --dmg
-          # Renombrar el archivo .dmg generado
+          # Renombrar el archivo .dmg generado (puede tener nombre variable)
           mv *.dmg ramdisk.dmg 2>/dev/null || true
 
       - name: Package Artifact
