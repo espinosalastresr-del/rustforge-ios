@@ -13,10 +13,18 @@ jobs:
         with:
           repository: LiveContainer/LiveExec32
 
-      - name: Install Dependencies
+      - name: Install wget and unzip
+        run: brew install wget unzip
+
+      - name: Download ipsw binary (precompiled)
         run: |
-          brew install wget
-          brew install blacktop/tap/ipsw
+          # Descargar la última versión de ipsw para macOS desde GitHub Releases
+          IPSW_VERSION="3.1.713"
+          curl -L -o ipsw.zip "https://github.com/blacktop/ipsw/releases/download/v${IPSW_VERSION}/ipsw_${IPSW_VERSION}_macOS_arm64.zip"
+          unzip ipsw.zip -d /usr/local/bin/
+          chmod +x /usr/local/bin/ipsw
+          # Verificar instalación
+          ipsw --version
 
       - name: Setup Theos
         uses: Randomblock1/theos-action@v1
@@ -38,10 +46,9 @@ jobs:
 
       - name: Extract Filesystem DMG
         run: |
-          # Extrae todos los DMGs, pero nos interesa el del sistema de archivos
+          # Extraer el DMG del sistema de archivos
           ipsw extract iPhone_4.0_32bit_10.3.3_14G60_Restore.ipsw --dmg
-          # ipsw genera un archivo con nombre como "048-12345-123.dmg"
-          # Lo renombramos para identificarlo fácilmente
+          # Renombrar el archivo .dmg generado
           mv *.dmg ramdisk.dmg 2>/dev/null || true
 
       - name: Package Artifact
