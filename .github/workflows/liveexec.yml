@@ -18,10 +18,11 @@ jobs:
 
       - name: Trust and Install ipsw via Homebrew
         run: |
-          # Confiar en el tap de blacktop (requerido por Homebrew 6+)[reference:1]
           brew trust blacktop/tap
-          # Instalar ipsw desde el tap
           brew install blacktop/tap/ipsw
+
+      - name: Create SDKs directory
+        run: mkdir -p theos/sdks
 
       - name: Setup Theos
         uses: Randomblock1/theos-action@v1
